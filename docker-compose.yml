@@ -1,0 +1,67 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: surveillance-postgres
+    environment:
+      POSTGRES_DB: surveillance_db
+      POSTGRES_USER: ${DB_USERNAME:-surveillance_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-surveillance_pass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-surveillance_user} -d surveillance_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - surveillance-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: surveillance-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_secret}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - surveillance-net
+
+  app:
+    build: .
+    container_name: surveillance-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_URL: jdbc:postgresql://postgres:5432/surveillance_db
+      DB_USERNAME: ${DB_USERNAME:-surveillance_user}
+      DB_PASSWORD: ${DB_PASSWORD:-surveillance_pass}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_secret}
+    ports:
+      - "8080:8080"
+    networks:
+      - surveillance-net
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  surveillance-net:
+    driver: bridge

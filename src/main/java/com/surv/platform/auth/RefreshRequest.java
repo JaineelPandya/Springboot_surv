@@ -1,0 +1,5 @@
+package com.surv.platform.auth;
+
+import jakarta.validation.constraints.NotBlank;
+
+public record RefreshRequest(@NotBlank String refreshToken) {}
